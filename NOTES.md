@@ -57,3 +57,10 @@ confidence — neither is evidence of clear air.
   Chihuahua (uncovered −107.85..−106 at 32°N; El Paso), which GOES-19 CONUS does
   cover. Both CONUS sectors end near 51–53°N, short of the 55°N bbox edge. Gaps
   render transparent, like "no detection"; only `coverage` reports them.
+
+## SAT-3b
+
+- CONUS: per-pixel fallback (each half prefers its own satellite, the other
+  fills what it cannot see) closed the southern New Mexico gap; north edge 53°.
+  Ontario 13:50Z coverage west 0.81 → 0.99, east 0.85 → 0.93.
+- `warming_up` outranks `partial`; a cold start or any >35 min gap re-warms.

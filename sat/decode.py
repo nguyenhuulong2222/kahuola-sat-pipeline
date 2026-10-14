@@ -4,11 +4,14 @@ fields onto an arbitrary set of lon/lat points (nearest native pixel).
 Every bit position used downstream was read from the files' own flag_masks /
 flag_values / flag_meanings in SAT-2a and confirmed against ATBD v1.1 in SAT-2b.
 check_flag_layout() re-verifies them on every file; a mismatch aborts the run."""
+import os
 from dataclasses import dataclass
 
 import numpy as np
 from netCDF4 import Dataset
 from pyproj import Proj
+
+from .fetch import scan_mode
 
 FIELDS = ("DQF", "Smoke", "Dust", "Cloud", "SnowIce", "PQI1", "PQI2")
 U16_FILL = 65535
@@ -83,6 +86,7 @@ class ScanMeta:
     scan_end: str
     created: str
     algorithm_version: str
+    scan_mode: str | None
 
 
 def open_scan(path):
@@ -95,6 +99,7 @@ def open_scan(path):
         scan_end=ds.getncattr("time_coverage_end"),
         created=ds.getncattr("date_created"),
         algorithm_version=ds.variables["algorithm_product_version_container"].getncattr("product_version"),
+        scan_mode=scan_mode(os.path.basename(path)),
     )
     return ds, meta
 

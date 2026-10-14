@@ -20,7 +20,8 @@ def make_canvas(bbox, width):
     mx = mx0 + (np.arange(width) + 0.5) * (mx1 - mx0) / width
     my = my1 - (np.arange(height) + 0.5) * (my1 - my0) / height
     lon, lat = to_ll.transform(*np.meshgrid(mx, my))
-    return np.asarray(lon), np.asarray(lat), (mx1 - mx0) / width
+    extent = {"mx0": mx0, "my0": my0, "mx1": mx1, "my1": my1, "width": width, "height": height}
+    return np.asarray(lon), np.asarray(lat), extent
 
 
 def write_png(cls, path):

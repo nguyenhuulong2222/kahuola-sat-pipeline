@@ -48,14 +48,15 @@ def main(argv=None):
             hit = per_source[s["name"]].get(slot)
             paths[s["name"]] = fetch.download(s["bucket"], hit[1], a.data_dir) if hit else None
         t1 = time.perf_counter()
-        m, _ = process_frame(a.region, cfg, slot, paths, a.state_dir, a.out_dir)
+        m, _, _ = process_frame(a.region, cfg, slot, paths, a.state_dir, a.out_dir)
         t2 = time.perf_counter()
         c = m["counts"]
         print(f"{a.region} slot={slot:%Y-%m-%dT%H:%MZ} status={m['status']} SMOKE={c['SMOKE']} DUST={c['DUST']} "
               f"raw_smoke={c['raw_smoke']} raw_dust={c['raw_dust']} below={c['below_threshold']} "
               f"transient={c['transient_suppressed']} volcanic={c['volcanic_suppressed']} "
               f"snowice={c['snowice_suppressed']} daylight={m['daylight_fraction']:.3f} "
-              f"cloud={m['cloud_fraction']} coverage={m['coverage']} "
+              f"cloud={m['cloud_fraction']} coverage={m['coverage']} fallback={m['fallback_pixels']} "
+              f"mode={m['scan_mode']} "
               f"fetch_s={t1 - t0:.1f} process_s={t2 - t1:.2f}")
         for x in m["missing"]:
             print(f"    missing: {x}")

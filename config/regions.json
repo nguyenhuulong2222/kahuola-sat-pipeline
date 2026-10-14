@@ -11,7 +11,7 @@
   },
   "conus": {
     "product_label": "GOES-18 + GOES-19 ABI-L2-ADPC",
-    "bbox": [-130, 20, -60, 55],
+    "bbox": [-130, 20, -60, 53],
     "width": 3000,
     "cadence_min": 10,
     "sources": [

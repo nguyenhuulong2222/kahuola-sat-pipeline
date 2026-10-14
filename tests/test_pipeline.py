@@ -6,7 +6,9 @@ import pytest
 from netCDF4 import Dataset
 
 from conftest import scan_at, utc
-from sat import persist
+from datetime import timedelta
+
+from sat import fetch, persist
 from sat.classify import DUST, NONE, SMOKE, classify
 from sat.decode import FlagLayoutError
 from sat.pipeline import process_frame
@@ -19,7 +21,7 @@ HAWAII = {
 }
 LA = {**HAWAII, "bbox": [-121, 32, -117, 35], "width": 192}
 CONUS = {
-    "product_label": "GOES-18 + GOES-19 ABI-L2-ADPC", "bbox": [-130, 20, -60, 55], "width": 3000, "cadence_min": 10,
+    "product_label": "GOES-18 + GOES-19 ABI-L2-ADPC", "bbox": [-130, 20, -60, 53], "width": 3000, "cadence_min": 10,
     "sources": [
         {"name": "west", "satellite": "GOES-18", "bucket": "noaa-goes18", "product": "ABI-L2-ADPC",
          "lon_min": -130, "lon_max": -106},
@@ -32,7 +34,7 @@ CONUS = {
 # 1. Night file -> status night, nothing shown.
 def test_night_file_is_night(tmp_path):
     path = scan_at("noaa-goes18", "ABI-L2-ADPF", utc(2026, 10, 14, 8, 0))
-    m, final = process_frame("hawaii", HAWAII, utc(2026, 10, 14, 8, 0), {"main": path},
+    m, final, _ = process_frame("hawaii", HAWAII, utc(2026, 10, 14, 8, 0), {"main": path},
                              tmp_path / "state", tmp_path / "out")
     assert m["status"] == "night"
     assert m["counts"]["SMOKE"] == 0 and m["counts"]["DUST"] == 0
@@ -46,15 +48,18 @@ def test_la_plume_survives_persistence(tmp_path):
     for minute in (0, 10, 20):
         t = utc(2025, 1, 9, 21, minute)
         path = scan_at("noaa-goes18", "ABI-L2-ADPF", t)
-        m, _ = process_frame("la", LA, slot_of(t, 10), {"main": path}, tmp_path / "state", tmp_path / "out")
+        m, _, _ = process_frame("la", LA, slot_of(t, 10), {"main": path}, tmp_path / "state", tmp_path / "out")
         ms.append(m)
     third = ms[-1]
     print(f"\nLA 21:20Z SMOKE={third['counts']['SMOKE']} raw_smoke={third['counts']['raw_smoke']} "
           f"transient={third['counts']['transient_suppressed']} status={third['status']}")
     assert third["status"] == "complete"
     assert third["counts"]["SMOKE"] > 100
-    # First frame has no history, so nothing can be shown yet — and it says why.
-    assert ms[0]["counts"]["SMOKE"] == 0 and ms[0]["status"] == "partial"
+    # First frames lack 2 scans of history within 35 min: nothing confirmed yet.
+    assert ms[0]["counts"]["SMOKE"] == 0 and ms[0]["status"] == "warming_up"
+    assert ms[1]["status"] == "warming_up"
+    assert third["persistence_history_scans"] and len(third["persistence_history_scans"]) == 2
+    assert third["scan_mode"] == ["M6"]
 
 
 # 3. A single-scan blip is suppressed; the same pixel in 2 of 3 scans (shifted
@@ -119,12 +124,59 @@ def test_flag_layout_change_aborts(tmp_path):
 
 # 6. CONUS with the east half missing -> partial; the west half is still rendered.
 def test_conus_missing_east_is_partial(tmp_path):
+    # Warm state first (two earlier west-only frames), so the status reflects
+    # the missing half rather than warming_up, which outranks partial.
+    for minute in (40, 50):
+        t0 = utc(2026, 10, 13, 21, minute)
+        process_frame("conus", CONUS, slot_of(t0, 10), {"west": scan_at("noaa-goes18", "ABI-L2-ADPC", t0),
+                      "east": None}, tmp_path / "state", tmp_path / "out")
     t = utc(2026, 10, 13, 22, 0)
     west = scan_at("noaa-goes18", "ABI-L2-ADPC", t)
-    m, _ = process_frame("conus", CONUS, slot_of(t, 10), {"west": west, "east": None},
-                         tmp_path / "state", tmp_path / "out")
+    m, _, _ = process_frame("conus", CONUS, slot_of(t, 10), {"west": west, "east": None},
+                            tmp_path / "state", tmp_path / "out")
     assert m["status"] == "partial"
     assert m["source_files"][1] is None and m["scan_start_utc"][1] is None
     assert any(x.startswith("source east") for x in m["missing"])
-    assert m["coverage"]["east"] is None and m["coverage"]["west"] > 0.5
+    assert m["coverage"]["west"] > 0.5
+    assert any(x.endswith("lacked source east") for x in m["missing"])
     assert os.path.exists(tmp_path / "out" / "conus_20261013T2200Z.png")
+
+
+# SAT-3b 1. El Paso sits in the west half, outside GOES-18 PACUS; GOES-19 fills it.
+def test_conus_fallback_covers_el_paso(tmp_path):
+    t = utc(2026, 10, 13, 22, 0)
+    west = scan_at("noaa-goes18", "ABI-L2-ADPC", t)
+    east = scan_at("noaa-goes19", "ABI-L2-ADPC", t)
+    from sat.render import make_canvas
+    lon, lat, _ = make_canvas(CONUS["bbox"], CONUS["width"])
+    r, c = np.unravel_index(np.argmin((lon + 106.4) ** 2 + (lat - 31.8) ** 2), lon.shape)
+    assert lon[r, c] < -106  # the west half
+    m, _, covered = process_frame("conus", CONUS, slot_of(t, 10), {"west": west, "east": east},
+                                  tmp_path / "state", tmp_path / "out")
+    assert covered[r, c]
+    assert m["fallback_pixels"]["west"] > 0
+    # Without the east file nothing can fill it.
+    _, _, covered_w = process_frame("conus", CONUS, slot_of(t, 10), {"west": west, "east": None},
+                                    tmp_path / "state2", tmp_path / "out2")
+    assert not covered_w[r, c]
+    # The coverage outline is written, referenced, and contains El Paso.
+    import json
+    from shapely.geometry import Point, shape
+    gj = json.load(open(tmp_path / "out" / m["coverage_geojson"]))
+    assert shape(gj["features"][0]["geometry"]).contains(Point(-106.4, 31.8))
+
+
+# SAT-3b 4. History older than 35 min does not count.
+def test_history_window():
+    now = utc(2026, 10, 13, 22, 0)
+    mk = lambda mins: {"cand": None, "present": {}, "scan_time": (now - timedelta(minutes=mins)).isoformat()}
+    hist = {"a": mk(10), "b": mk(20), "c": mk(36)}
+    assert [t for t, _ in persist.select_history(hist, now)] == [hist["a"]["scan_time"], hist["b"]["scan_time"]]
+    assert len(persist.select_history({"c": mk(36), "d": mk(50)}, now)) == 0
+    assert len(persist.select_history({"x": mk(-10)}, now)) == 0   # future scans never count
+
+
+# SAT-3b 5. M6 preferred when a slot holds two scans.
+def test_scan_mode_parsed():
+    assert fetch.scan_mode("OR_ABI-L2-ADPF-M4_G18_s20262851905205_e2_c3.nc") == "M4"
+    assert fetch.scan_mode("OR_ABI-L2-ADPF-M6_G18_s20262862200204_e2_c3.nc") == "M6"
