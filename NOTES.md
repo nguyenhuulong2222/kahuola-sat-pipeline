@@ -44,3 +44,16 @@ confidence — neither is evidence of clear air.
 - Every DUST pixel is inside the Mauna Loa VOLCANIC_ZONES bbox. Volcanic tagging
   currently counts SMOKE only.
 - SMOKE pixels: small clusters (5-6 px) with no independent confirmation.
+
+## SAT-3 (detections-only processor)
+
+- The SAT-2a/2b spike scripts (`process_adp.py`, `verify_fulldisk.py`,
+  `sat2b_evidence.py`) carried the retired NOT_DETECTED state and were removed;
+  they remain in history at e202d41 / 3161f01. `inspect_adp.py` + `geo.py`
+  (structure dump, no state model) are kept.
+- Counts are in canvas pixels (`count_unit`), not native pixels; the canvas is
+  sized near native resolution so the 8-neighbour persistence radius ≈ 1 native px.
+- CONUS split at −106°: GOES-18 PACUS does not reach southern New Mexico /
+  Chihuahua (uncovered −107.85..−106 at 32°N; El Paso), which GOES-19 CONUS does
+  cover. Both CONUS sectors end near 51–53°N, short of the 55°N bbox edge. Gaps
+  render transparent, like "no detection"; only `coverage` reports them.

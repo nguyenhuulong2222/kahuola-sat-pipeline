@@ -1,0 +1,24 @@
+{
+  "hawaii": {
+    "product_label": "GOES-18 ABI-L2-ADPF",
+    "bbox": [-161, 18, -154, 23],
+    "width": 384,
+    "cadence_min": 10,
+    "sources": [
+      {"name": "main", "satellite": "GOES-18", "bucket": "noaa-goes18", "product": "ABI-L2-ADPF",
+       "lon_min": -180, "lon_max": 180}
+    ]
+  },
+  "conus": {
+    "product_label": "GOES-18 + GOES-19 ABI-L2-ADPC",
+    "bbox": [-130, 20, -60, 55],
+    "width": 3000,
+    "cadence_min": 10,
+    "sources": [
+      {"name": "west", "satellite": "GOES-18", "bucket": "noaa-goes18", "product": "ABI-L2-ADPC",
+       "lon_min": -130, "lon_max": -106},
+      {"name": "east", "satellite": "GOES-19", "bucket": "noaa-goes19", "product": "ABI-L2-ADPC",
+       "lon_min": -106, "lon_max": -60}
+    ]
+  }
+}

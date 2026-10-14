@@ -3,3 +3,5 @@ data/
 out/
 __pycache__/
 docs/*.pdf
+state/
+.pytest_cache/
