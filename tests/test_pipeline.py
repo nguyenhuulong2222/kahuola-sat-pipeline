@@ -32,6 +32,7 @@ CONUS = {
 
 
 # 1. Night file -> status night, nothing shown.
+@pytest.mark.network
 def test_night_file_is_night(tmp_path):
     path = scan_at("noaa-goes18", "ABI-L2-ADPF", utc(2026, 10, 14, 8, 0))
     m, final, _ = process_frame("hawaii", HAWAII, utc(2026, 10, 14, 8, 0), {"main": path},
@@ -43,6 +44,7 @@ def test_night_file_is_night(tmp_path):
 
 
 # 2. LA fires, 3 consecutive scans: the plume survives persistence.
+@pytest.mark.network
 def test_la_plume_survives_persistence(tmp_path):
     ms = []
     for minute in (0, 10, 20):
@@ -108,6 +110,7 @@ def test_snowice_and_geometry_suppressed():
 
 
 # 5. A changed flag layout aborts the run.
+@pytest.mark.network
 def test_flag_layout_change_aborts(tmp_path):
     src = scan_at("noaa-goes18", "ABI-L2-ADPF", utc(2026, 10, 14, 8, 0))
     bad = tmp_path / "mutated.nc"
@@ -123,6 +126,7 @@ def test_flag_layout_change_aborts(tmp_path):
 
 
 # 6. CONUS with the east half missing -> partial; the west half is still rendered.
+@pytest.mark.network
 def test_conus_missing_east_is_partial(tmp_path):
     # Warm state first (two earlier west-only frames), so the status reflects
     # the missing half rather than warming_up, which outranks partial.
@@ -143,6 +147,7 @@ def test_conus_missing_east_is_partial(tmp_path):
 
 
 # SAT-3b 1. El Paso sits in the west half, outside GOES-18 PACUS; GOES-19 fills it.
+@pytest.mark.network
 def test_conus_fallback_covers_el_paso(tmp_path):
     t = utc(2026, 10, 13, 22, 0)
     west = scan_at("noaa-goes18", "ABI-L2-ADPC", t)

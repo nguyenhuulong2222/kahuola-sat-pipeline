@@ -64,3 +64,40 @@ the edges); properties `region`, `slot`, `source_files`, `method`.
 `missing`, `scan_mode`, `scan_start_utc`, `source_files`, `counts`,
 `daylight_fraction`, `cloud_fraction`, `coverage`, `fallback_pixels`,
 `generated_at_utc`. No images.
+
+## Object storage layout (`--upload`)
+
+```
+<region>/frames/<stamp>.png
+<region>/frames/<stamp>.json                 manifest (this schema)
+<region>/frames/<stamp>_coverage.geojson
+<region>/state/history.npz                   persistence state
+<region>/latest.json                         pointer, written LAST
+<region>/health.json
+<region>/shadow/<YYYY-MM-DD>.jsonl           shadow log (--shadow)
+```
+
+`<stamp>` is the scan slot, `YYYYMMDDTHHMMZ`. A frame's files are uploaded in
+the order png → geojson → manifest → state → `latest.json`; if any upload
+fails, `latest.json` is not touched. `latest.json` is rewritten for every
+successful frame, including `night` and `warming_up` ones.
+
+### `latest.json`
+
+| Field | Meaning |
+|---|---|
+| `manifest_key` | Key of the frame manifest. |
+| `png_key` | Key of the PNG, or null if none was written. |
+| `coverage_key` | Key of the coverage GeoJSON, or null. |
+| `scan_start_utc` | Earliest `scan_start_utc` among the frame's sources. |
+| `generated_at_utc` | Copied from the manifest. |
+| `status` | Copied from the manifest. Freshness is judged by the client from `scan_start_utc`. |
+
+### `health.json`
+
+| Field | Meaning |
+|---|---|
+| `last_run_utc` | Time of the last run, successful or not. |
+| `last_success_utc` | Time of the last fully successful run (null if none yet). |
+| `last_error_code` | Short code of the last failure, null after a success. Codes: `R2_CONFIG_MISSING`, `R2_GET_FAILED`, `R2_PUT_FAILED`, `NO_SCANS_FOUND`, `UPSTREAM_FETCH_FAILED`, `FLAG_LAYOUT_CHANGED`, `LOCAL_IO_FAILED`, `INTERNAL_ERROR`. Never a trace, never a secret. |
+| `consecutive_failures` | Failed runs since the last success. |
