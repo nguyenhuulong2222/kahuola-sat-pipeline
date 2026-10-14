@@ -4,9 +4,8 @@ name: keepalive
 # activity. A monthly one-line commit keeps sat.yml's schedule alive.
 on:
   workflow_dispatch:
-  # Enabled in SAT-4b only, together with sat.yml's schedule.
-  # schedule:
-  #   - cron: "0 12 1 * *"
+  schedule:
+    - cron: "0 12 1 * *"
 
 concurrency:
   group: keepalive

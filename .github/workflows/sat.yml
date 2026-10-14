@@ -2,9 +2,10 @@ name: sat
 
 on:
   workflow_dispatch:
-  # Enabled in SAT-4b only, after review. Do not uncomment without that ruling.
-  # schedule:
-  #   - cron: "*/10 * * * *"
+  # SAT-4b: :05, :15, ... — CONUS ADPC lands ~4 min after scan start,
+  # Hawaiʻi ADPF ~12 min after; also avoids top-of-hour scheduler congestion.
+  schedule:
+    - cron: "5-59/10 * * * *"
 
 concurrency:
   group: sat-pipeline
