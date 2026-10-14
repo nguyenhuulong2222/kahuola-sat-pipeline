@@ -1,11 +1,12 @@
 name: keepalive
 
-# GitHub disables scheduled workflows after 60 days without repository
-# activity. A monthly one-line commit keeps sat.yml's schedule alive.
+# GitHub's 60-day inactivity rule only disables *scheduled* workflows.
+# sat.yml no longer has a schedule (kahuola-sat-scheduler dispatches it), so
+# this keepalive is not needed; kept for manual use only.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 12 1 * *"
+  # schedule:
+  #   - cron: "0 12 1 * *"
 
 concurrency:
   group: keepalive

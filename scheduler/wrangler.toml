@@ -1,0 +1,14 @@
+name = "kahuola-sat-scheduler"
+main = "src/index.ts"
+compatibility_date = "2026-10-14"
+workers_dev = false          # no public URL
+# no routes
+
+[triggers]
+crons = ["5,15,25,35,45,55 * * * *"]
+
+[vars]
+GH_OWNER = "nguyenhuulong2222"
+GH_REPO = "kahuola-sat-pipeline"
+GH_WORKFLOW = "sat.yml"
+GH_REF = "main"
