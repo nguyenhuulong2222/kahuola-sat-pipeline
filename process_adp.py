@@ -91,10 +91,11 @@ def classify(dqf, smoke, dust, cloud, pqi1, pqi2, dqf_fill, i8_fill):
     smoke_med_high = (sf == 0) | (sf == 4)
     dust_med_high = (df == 0) | (df == 16)
     smoke_valid = sf != 12
-    dust_valid = df != 48
 
     state = np.full(dqf.shape, NO_RETRIEVAL, dtype=np.uint8)
-    nd = ~no_ret & smoke_valid & dust_valid
+    # SAT-2b ruling: NOT_DETECTED is a statement about SMOKE only. The dust
+    # field may be bad; dust is shown only as a positive detection.
+    nd = ~no_ret & smoke_valid
     state[nd] = NOT_DETECTED                 # includes low-confidence detections (ruling)
     state[~no_ret & (dust == 1) & dust_med_high] = DUST
     state[~no_ret & (smoke == 1) & smoke_med_high] = SMOKE   # smoke wins over dust
