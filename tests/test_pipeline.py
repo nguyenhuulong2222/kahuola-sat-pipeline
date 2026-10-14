@@ -185,3 +185,42 @@ def test_history_window():
 def test_scan_mode_parsed():
     assert fetch.scan_mode("OR_ABI-L2-ADPF-M4_G18_s20262851905205_e2_c3.nc") == "M4"
     assert fetch.scan_mode("OR_ABI-L2-ADPF-M6_G18_s20262862200204_e2_c3.nc") == "M6"
+
+
+# SAT-4c. The same scan processed twice counts once toward 2-of-3.
+def test_duplicate_scan_counts_once():
+    t = utc(2026, 10, 14, 18, 10)
+    scans = {"west": "2026-10-14T18:11:17.1Z", "east": "2026-10-14T18:10:21.2Z"}
+    cand = np.zeros((20, 20), dtype=np.uint8)
+    cand[10, 10] = SMOKE
+    entry = lambda sc: {"cand": cand.copy(), "scan_time": t.isoformat(), "present": {}, "scans": dict(sc)}
+    # Dispatch and schedule both processed this scan, under different keys.
+    hist = {"dispatch": entry(scans), "schedule": entry(scans)}
+    # Reprocessing it again: neither copy may confirm it, so nothing is shown.
+    used = persist.select_history(hist, t + timedelta(seconds=1), current_scans=scans)
+    assert used == []
+    assert not persist.apply(cand, [e["cand"] for _, e in used]).any()
+    # A later, distinct scan sees the two copies as ONE earlier scan.
+    later = {"west": "2026-10-14T18:21:17.1Z", "east": "2026-10-14T18:20:21.2Z"}
+    assert len(persist.select_history(hist, t + timedelta(minutes=10), current_scans=later)) == 1
+    # Sharing one source's scan is enough to be the same scan.
+    part = {"a": entry({"west": scans["west"], "east": None}), "b": entry(scans)}
+    assert len(persist.select_history(part, t + timedelta(minutes=10), current_scans=later)) == 1
+    # Recording drops the earlier copy, so state holds the scan once.
+    one = {}
+    for key in ("dispatch", "schedule"):
+        persist.record(one, key, entry(scans))
+    assert list(one) == ["schedule"]
+
+
+# SAT-4c. End to end: the LA plume scan processed twice is not confirmed by itself.
+@pytest.mark.network
+def test_la_same_scan_twice_does_not_persist(tmp_path):
+    t = utc(2025, 1, 9, 21, 10)
+    path = scan_at("noaa-goes18", "ABI-L2-ADPF", t)
+    ms = [process_frame("la", LA, slot, {"main": path}, tmp_path / "state", tmp_path / "out")[0]
+          for slot in (slot_of(t, 10), slot_of(t, 10) + timedelta(minutes=10))]
+    assert ms[1]["counts"]["raw_smoke"] > 100           # the plume is there ...
+    assert ms[1]["counts"]["SMOKE"] == 0                # ... but one scan cannot confirm itself
+    assert ms[1]["status"] == "warming_up"
+    assert ms[1]["persistence_history_scans"] == []

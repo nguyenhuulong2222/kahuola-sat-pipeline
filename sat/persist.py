@@ -5,8 +5,13 @@ History counts only if its scan time is within WINDOW_MIN of the current scan
 (SAT-3b). With fewer than 2 such scans the frame is "warming_up": anything an
 older or missing scan might have confirmed is NOT assumed.
 
+A scan counts ONCE (SAT-4c): history entries are identified by their
+per-source scan_start_utc, so the same scan processed twice (manual dispatch
+plus schedule, two triggers) can never supply both confirmations.
+
 State per region = the last KEEP pre-persistence candidate arrays in
-state/<region>.npz, each with its scan time and which sources were present."""
+state/<region>.npz, each with its scan time, per-source scan starts and which
+sources were present."""
 import json
 import os
 from datetime import datetime, timedelta
@@ -48,13 +53,46 @@ def parse_time(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-def select_history(hist, scan_time, window_min=WINDOW_MIN):
-    """The (up to) 2 most recent entries strictly before scan_time and no more
-    than window_min older. Returns [(scan_time_iso, entry), ...] newest first."""
+def scan_ids(scan_time, scans):
+    """Identity of a processed scan: each source's scan_start_utc, plus the
+    frame scan time (the only identity entries saved before SAT-4c carry)."""
+    ids = {f"{n}:{t}" for n, t in (scans or {}).items() if t}
+    if scan_time:
+        t = parse_time(scan_time) if isinstance(scan_time, str) else scan_time
+        ids.add(f"*:{t.isoformat()}")
+    return ids
+
+
+def entry_ids(entry):
+    return scan_ids(entry["scan_time"], entry.get("scans"))
+
+
+def record(hist, key, entry):
+    """Store entry under key, first dropping any entry that shares a scan with it."""
+    ids = entry_ids(entry)
+    for k in [k for k, e in hist.items() if entry_ids(e) & ids]:
+        del hist[k]
+    hist[key] = entry
+
+
+def select_history(hist, scan_time, window_min=WINDOW_MIN, current_scans=None):
+    """The (up to) 2 most recent distinct scans strictly before scan_time and
+    no more than window_min older, never sharing a scan with the current one
+    or with each other. Returns [(scan_time_iso, entry), ...] newest first."""
     lo = scan_time - timedelta(minutes=window_min)
-    usable = [(k, e) for k, e in hist.items() if lo <= parse_time(e["scan_time"]) < scan_time]
-    usable.sort(key=lambda ke: parse_time(ke[1]["scan_time"]), reverse=True)
-    return [(e["scan_time"], e) for _, e in usable[:PREVIOUS_NEEDED]]
+    usable = [e for e in hist.values() if lo <= parse_time(e["scan_time"]) < scan_time]
+    usable.sort(key=lambda e: parse_time(e["scan_time"]), reverse=True)
+    seen = scan_ids(scan_time, current_scans)
+    out = []
+    for e in usable:
+        ids = entry_ids(e)
+        if ids & seen:
+            continue
+        seen |= ids
+        out.append((e["scan_time"], e))
+        if len(out) == PREVIOUS_NEEDED:
+            break
+    return out
 
 
 def load(path, shape):
@@ -67,7 +105,8 @@ def load(path, shape):
         for i, m in enumerate(meta):
             a = z[f"cand_{i}"]
             if a.shape == tuple(shape) and "scan_time" in m:
-                hist[m["slot"]] = {"cand": a, "scan_time": m["scan_time"], "present": m["present"]}
+                hist[m["slot"]] = {"cand": a, "scan_time": m["scan_time"], "present": m["present"],
+                                  "scans": m.get("scans", {})}
     return hist
 
 
@@ -75,7 +114,8 @@ def save(path, hist):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     keys = sorted(hist, key=lambda k: parse_time(hist[k]["scan_time"]))[-KEEP:]
     arrays = {f"cand_{i}": hist[k]["cand"] for i, k in enumerate(keys)}
-    meta = [{"slot": k, "scan_time": hist[k]["scan_time"], "present": hist[k]["present"]} for k in keys]
+    meta = [{"slot": k, "scan_time": hist[k]["scan_time"], "present": hist[k]["present"],
+             "scans": hist[k].get("scans", {})} for k in keys]
     tmp = path + ".tmp.npz"
     np.savez_compressed(tmp, meta=json.dumps(meta), **arrays)
     os.replace(tmp, path)

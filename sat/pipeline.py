@@ -79,7 +79,8 @@ def process_frame(region, cfg, slot, paths, state_dir="state", out_dir="out"):
     scan_time = min(scan_times) if scan_times else None
     state_path = os.path.join(state_dir, f"{region}.npz")
     hist = persist.load(state_path, cand.shape)
-    used = persist.select_history(hist, scan_time) if scan_time else []
+    scans = {n: (m.scan_start if m else None) for n, m in metas.items()}
+    used = persist.select_history(hist, scan_time, current_scans=scans) if scan_time else []
     if scan_time and len(used) < persist.PREVIOUS_NEEDED:
         missing.append(f"persistence history: {len(used)} of {persist.PREVIOUS_NEEDED} previous scans "
                        f"within {persist.WINDOW_MIN} min of {scan_time.isoformat()}")
@@ -96,7 +97,8 @@ def process_frame(region, cfg, slot, paths, state_dir="state", out_dir="out"):
         "transient_suppressed": int(((cand > 0) & ~kept).sum()),
     }
     if scan_time:
-        hist[slot.isoformat()] = {"cand": cand, "scan_time": scan_time.isoformat(), "present": present}
+        persist.record(hist, slot.isoformat(), {"cand": cand, "scan_time": scan_time.isoformat(),
+                                                "present": present, "scans": scans})
         persist.save(state_path, hist)
 
     os.makedirs(out_dir, exist_ok=True)
