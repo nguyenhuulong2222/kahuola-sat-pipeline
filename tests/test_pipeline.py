@@ -224,3 +224,30 @@ def test_la_same_scan_twice_does_not_persist(tmp_path):
     assert ms[1]["counts"]["SMOKE"] == 0                # ... but one scan cannot confirm itself
     assert ms[1]["status"] == "warming_up"
     assert ms[1]["persistence_history_scans"] == []
+
+
+# SAT-4f. warming_up displays nothing: 1 earlier scan confirms the plume, but
+# the frame is warming_up, so SMOKE=0, the PNG is transparent, raw is logged.
+@pytest.mark.network
+def test_warming_up_shows_nothing(tmp_path):
+    from PIL import Image
+    ms = []
+    for minute in (10, 20):
+        t = utc(2025, 1, 9, 21, minute)
+        path = scan_at("noaa-goes18", "ABI-L2-ADPF", t)
+        m, final, _ = process_frame("la", LA, slot_of(t, 10), {"main": path}, tmp_path / "state", tmp_path / "out")
+        ms.append(m)
+    second = ms[1]
+    assert second["status"] == "warming_up"
+    assert len(second["persistence_history_scans"]) == 1
+    assert second["counts"]["SMOKE"] == 0 and second["counts"]["DUST"] == 0
+    assert not final.any()
+    assert second["counts"]["raw_smoke"] > 100
+    assert second["counts"]["warming_up_suppressed"] > 100   # 2-scan detections, held back
+    png = Image.open(tmp_path / "out" / "la_20250109T2120Z.png").convert("RGBA")
+    assert png.getextrema()[3] == (0, 0)
+    # State still holds both scans, so the next frame can confirm and show.
+    t = utc(2025, 1, 9, 21, 30)
+    third, _, _ = process_frame("la", LA, slot_of(t, 10), {"main": scan_at("noaa-goes18", "ABI-L2-ADPF", t)},
+                                tmp_path / "state", tmp_path / "out")
+    assert third["status"] == "complete" and third["counts"]["SMOKE"] > 100

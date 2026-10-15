@@ -24,7 +24,7 @@ qualifying detection"; outside it means "not observed". ADP has no
 | `generated_at_utc` | string | When this manifest was written. |
 | `bbox` | number[4] | `[west, south, east, north]` in degrees. |
 | `crs` | string | `"EPSG:3857"` — the PNG's grid. |
-| `status` | string | One of, in precedence order: `unavailable` (no source read), `night` (`daylight_fraction` < 0.05), `warming_up` (fewer than 2 earlier scans within 35 min of this one — persistence could not confirm anything from them), `partial` (anything else in `missing`), `complete`. |
+| `status` | string | One of, in precedence order: `unavailable` (no source read), `night` (`daylight_fraction` < 0.05), `warming_up` (fewer than 2 earlier scans within 35 min of this one; the frame displays nothing, SMOKE and DUST are 0 and the PNG is fully transparent, SAT-4f), `partial` (anything else in `missing`), `complete`. |
 | `missing` | string[] | Every reason the frame is not complete: a source with no scan for the slot, persistence history short of 2 scans within 35 min, or a history scan that lacked a source. Empty only when complete. |
 | `rules` | object | `confidence: "medium_high"`, `persistence: "2_of_3_with_neighbours"`, `sza_vza_max: 60`, `exclusions: ["volcanic","snowice"]`. |
 | `persistence_history_scans` | string[] | Scan times (ISO UTC) of the earlier scans that persistence used, newest first; at most 2. |
@@ -50,6 +50,7 @@ qualifying detection"; outside it means "not observed". ADP has no
 | `volcanic_suppressed` | Qualifying smoke/dust inside VOLCANIC_ZONES (copied from kahuola-web `worker/src/index.ts` VOLCANIC_ZONES). |
 | `snowice_suppressed` | Qualifying smoke/dust where SnowIce==1. |
 | `transient_suppressed` | Qualifying smoke/dust not confirmed by persistence (same class at the pixel or an 8-neighbour in ≥ 2 of the last 3 scans within 35 min). |
+| `warming_up_suppressed` | Pixels persistence confirmed from a single earlier scan but not shown because the frame is `warming_up` (SAT-4f: a warming_up frame displays nothing; its PNG is fully transparent). |
 
 ## Coverage GeoJSON
 

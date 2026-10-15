@@ -89,12 +89,17 @@ def process_frame(region, cfg, slot, paths, state_dir="state", out_dir="out"):
             if not ok:
                 missing.append(f"persistence history: scan {t} lacked source {n}")
     kept = persist.apply(cand, [e["cand"] for _, e in used])
-    final = np.where(kept, cand, 0).astype(np.uint8)
+    # SAT-4f: a warming_up frame displays nothing, even what one earlier scan
+    # would confirm. The candidates still go into state for the next frame.
+    warming_up = bool(scan_time) and len(used) < persist.PREVIOUS_NEEDED
+    shown = np.zeros_like(kept) if warming_up else kept
+    final = np.where(shown, cand, 0).astype(np.uint8)
     counts = {
         "SMOKE": int((final == SMOKE).sum()),
         "DUST": int((final == DUST).sum()),
         **counts,
         "transient_suppressed": int(((cand > 0) & ~kept).sum()),
+        "warming_up_suppressed": int((kept & ~shown).sum()),
     }
     if scan_time:
         persist.record(hist, slot.isoformat(), {"cand": cand, "scan_time": scan_time.isoformat(),
@@ -115,7 +120,7 @@ def process_frame(region, cfg, slot, paths, state_dir="state", out_dir="out"):
                    "pixel_m_epsg3857": round((extent["mx1"] - extent["mx0"]) / extent["width"], 1)}
     m = build(region, cfg, metas, counts, aux, missing, cov, canvas_info,
               coverage_geojson=cov_name, fallback_pixels=fallback_pixels,
-              history=[t for t, _ in used], warming_up=bool(scan_time) and len(used) < persist.PREVIOUS_NEEDED)
+              history=[t for t, _ in used], warming_up=warming_up)
     with open(os.path.join(out_dir, f"{region}_{stamp}.json"), "w") as f:
         json.dump(m, f, indent=2)
     with open(os.path.join(out_dir, f"shadow_{region}.jsonl"), "a") as f:

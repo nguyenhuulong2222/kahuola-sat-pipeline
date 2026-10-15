@@ -94,7 +94,7 @@ def run(a, cfg, store):
         c = m["counts"]
         print(f"{a.region} slot={slot:%Y-%m-%dT%H:%MZ} status={m['status']} SMOKE={c['SMOKE']} DUST={c['DUST']} "
               f"raw_smoke={c['raw_smoke']} raw_dust={c['raw_dust']} below={c['below_threshold']} "
-              f"transient={c['transient_suppressed']} volcanic={c['volcanic_suppressed']} "
+              f"transient={c['transient_suppressed']} warming={c['warming_up_suppressed']} volcanic={c['volcanic_suppressed']} "
               f"snowice={c['snowice_suppressed']} daylight={m['daylight_fraction']:.3f} "
               f"cloud={m['cloud_fraction']} coverage={m['coverage']} fallback={m['fallback_pixels']} "
               f"mode={m['scan_mode']} fetch_s={t1 - t0:.1f} process_s={t2 - t1:.2f}"
